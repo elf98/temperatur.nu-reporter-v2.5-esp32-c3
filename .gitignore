@@ -1,6 +1,8 @@
-# Arduino build artifacts
-build/
-*.bin
+# Arduino build artifacts — alla utom huvudappens bin (som vi vill spåra för OTA-historik)
+build/*
+!build/esp32.esp32.esp32c3/
+build/esp32.esp32.esp32c3/*
+!build/esp32.esp32.esp32c3/temperatur_reporter_esp32c3.ino.bin
 *.elf
 *.map
 *.hex

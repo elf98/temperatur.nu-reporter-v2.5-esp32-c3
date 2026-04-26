@@ -26,11 +26,18 @@ class TRDisplay {
     void mainScreen(int signalStrength, const float* temperatures,
                     int sensorCount, uint32_t pin,
                     const String& ssid, const String& ip, int rssiPercent,
-                    bool uploadOk);
+                    bool uploadOk, const char* fwVersion,
+                    const String& localTime);
 
     void printDot();
     void nextScreenMode();
+    void setScreenMode(ScreenMode mode);
     ScreenMode getScreenMode();
+
+    // Långtrycks-indikator (visas live under press på WiFi-skärmen)
+    void showLongPressIndicator(unsigned long heldMs);
+    // Statusskärm under OTA / portal / reset
+    void statusScreen(const char* line1, const char* line2 = "");
 
   private:
     void screenTemperature();
@@ -48,6 +55,8 @@ class TRDisplay {
     String _ip;
     int _rssiPercent;
     bool _uploadOk;
+    const char* _fwVersion = "";
+    String _localTime;
 
     ScreenMode _screenMode = SCREEN_TEMPERATURE;
 

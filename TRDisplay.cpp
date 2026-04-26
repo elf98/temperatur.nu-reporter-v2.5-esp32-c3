@@ -56,7 +56,8 @@ void TRDisplay::printDot() {
 void TRDisplay::mainScreen(int signalStrength, const float* temperatures,
                            int sensorCount, uint32_t pin,
                            const String& ssid, const String& ip, int rssiPercent,
-                           bool uploadOk) {
+                           bool uploadOk, const char* fwVersion,
+                           const String& localTime) {
   _signalStrength = signalStrength;
   _temperatures = temperatures;
   _sensorCount = sensorCount;
@@ -65,6 +66,8 @@ void TRDisplay::mainScreen(int signalStrength, const float* temperatures,
   _ip = ip;
   _rssiPercent = rssiPercent;
   _uploadOk = uploadOk;
+  _fwVersion = fwVersion;
+  _localTime = localTime;
 
   if (_sensorCount >= 1) {
     _lowestTemperature = (_sensorCount == 2) ? min(_temperatures[0], _temperatures[1]) : _temperatures[0];
@@ -96,14 +99,12 @@ void TRDisplay::screenTemperature() {
   char tempStr[10];
   snprintf(tempStr, sizeof(tempStr), "%.1f", _lowestTemperature);
 
-  u8g2.setFont(u8g2_font_logisoso20_tn);
+  u8g2.setFont(u8g2_font_logisoso26_tn);
   int tw = u8g2.getStrWidth(tempStr);
-  u8g2.drawStr((SCREEN_W - tw) / 2, 32, tempStr);
-
-  u8g2.setFont(u8g2_font_6x13_tf);
-  u8g2.drawStr(0, 12, "\xb0" "C");
+  u8g2.drawStr((SCREEN_W - tw) / 2, 34, tempStr);
 
   if (!_uploadOk) {
+    u8g2.setFont(u8g2_font_6x13_tf);
     u8g2.drawStr(SCREEN_W - 6, 40, "!");
   }
 
@@ -172,49 +173,63 @@ void TRDisplay::screenPin() {
 // Skärm 3: Sensorinfo
 void TRDisplay::screenSensors() {
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_6x13_tf);
+  u8g2.setFont(u8g2_font_8x13B_tf);
 
   if (_sensorCount == 0) {
-    u8g2.drawStr(0, 13, "Ingen");
-    u8g2.drawStr(0, 28, "sensor");
+    u8g2.drawStr(0, 16, "Ingen");
+    u8g2.drawStr(0, 33, "sensor");
     u8g2.sendBuffer();
     return;
   }
 
   char t1Str[16];
   if (_temperatures[0] != -127.0f && _temperatures[0] != 85.0f)
-    snprintf(t1Str, sizeof(t1Str), "S1:%.1f\xb0", _temperatures[0]);
+    snprintf(t1Str, sizeof(t1Str), "S1: %.1f", _temperatures[0]);
   else
     snprintf(t1Str, sizeof(t1Str), "S1: ---");
-  u8g2.drawStr(0, 13, t1Str);
+  u8g2.drawStr(0, 16, t1Str);
 
   if (_sensorCount >= 2) {
     char t2Str[16];
     if (_temperatures[1] != -127.0f && _temperatures[1] != 85.0f)
-      snprintf(t2Str, sizeof(t2Str), "S2:%.1f\xb0", _temperatures[1]);
+      snprintf(t2Str, sizeof(t2Str), "S2: %.1f", _temperatures[1]);
     else
       snprintf(t2Str, sizeof(t2Str), "S2: ---");
-    u8g2.drawStr(0, 28, t2Str);
+    u8g2.drawStr(0, 33, t2Str);
   }
 
   u8g2.sendBuffer();
 }
 
-// Skärm 4: WiFi - stora signalstaplar centrerade
+// Skärm 4: WiFi - signalstaplar + FW-version + klocka
 void TRDisplay::screenWifi() {
   u8g2.clearBuffer();
 
-  u8g2.setFont(u8g2_font_7x14B_tf);
-  u8g2.drawStr(0, 14, "WiFi");
+  // Tid (vänster) — regular weight, 7x13 så den blir läsbar.
+  // Version får hålla emphasis via fet stil.
+  u8g2.setFont(u8g2_font_7x13_tf);
+  if (_localTime.length() > 0) {
+    u8g2.drawStr(0, 13, _localTime.c_str());
+  } else {
+    u8g2.drawStr(0, 13, "WiFi");
+  }
 
-  // Stora signalstaplar - centrerade nedtill
-  int barW = 10;
+  // Version fet (höger) — primärinfo. Bottom-aligned med klockan.
+  // Worst case: "12:34" 35px + "2.5.10" 36px = 71 av 72. 1 px gap.
+  u8g2.setFont(u8g2_font_6x13B_tf);
+  if (_fwVersion && _fwVersion[0] != '\0') {
+    int vw = u8g2.getStrWidth(_fwVersion);
+    u8g2.drawStr(SCREEN_W - vw, 13, _fwVersion);
+  }
+
+  // Signalstaplar nedtill
+  int barW = 9;
   int gap = 4;
   int totalW = 4 * barW + 3 * gap;
   int startX = (SCREEN_W - totalW) / 2;
 
   for (int i = 0; i < 4; i++) {
-    int barH = 5 + 5 * i; // 5, 10, 15, 20
+    int barH = 4 + 4 * i; // 4, 8, 12, 16
     int x = startX + i * (barW + gap);
     int y = 40 - barH;
     if (i < _signalStrength)
@@ -226,9 +241,57 @@ void TRDisplay::screenWifi() {
   u8g2.sendBuffer();
 }
 
+// Visas live medan användaren håller in knappen på WiFi-skärmen.
+// Bara text — visar vad som händer om knappen släpps NU.
+// Stages: OTA -> Portal -> AVBRYT (säker exit) -> RESET
+void TRDisplay::showLongPressIndicator(unsigned long heldMs) {
+  const char* releaseAction;
+  if (heldMs < 5000) {
+    releaseAction = "OTA";
+  } else if (heldMs < 10000) {
+    releaseAction = "Portal";
+  } else if (heldMs < 15000) {
+    releaseAction = "AVBRYT";
+  } else {
+    releaseAction = "RESET!";
+  }
+
+  u8g2.clearBuffer();
+
+  // Översta raden: "Släpp ="
+  u8g2.setFont(u8g2_font_6x10_tf);
+  const char* prefix = "Slapp =";
+  int pw = u8g2.getStrWidth(prefix);
+  u8g2.drawStr((SCREEN_W - pw) / 2, 12, prefix);
+
+  // Stora raden: action
+  u8g2.setFont(u8g2_font_7x14B_tf);
+  int tw = u8g2.getStrWidth(releaseAction);
+  u8g2.drawStr((SCREEN_W - tw) / 2, 32, releaseAction);
+
+  u8g2.sendBuffer();
+}
+
+// Enkel statusskärm för OTA/portal/reset-händelser
+void TRDisplay::statusScreen(const char* line1, const char* line2) {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_7x14B_tf);
+  u8g2.drawStr(0, 16, line1);
+  if (line2 && line2[0] != '\0') {
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(0, 32, line2);
+  }
+  u8g2.sendBuffer();
+}
+
 void TRDisplay::nextScreenMode() {
   _screenMode = (ScreenMode)((_screenMode + 1) % SCREEN_MODE_COUNT);
   Serial.printf("Skarmlage: %d\n", _screenMode);
+}
+
+void TRDisplay::setScreenMode(ScreenMode mode) {
+  _screenMode = mode;
+  Serial.printf("Skarmlage: %d (auto)\n", _screenMode);
 }
 
 ScreenMode TRDisplay::getScreenMode() {
