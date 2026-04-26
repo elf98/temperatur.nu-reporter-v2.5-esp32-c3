@@ -191,7 +191,7 @@ void handleButtonPress() {
 }
 
 // Gemensamt OTA-flöde.
-// verbose=true:  visar alla steg på display (Soker / Ingen ny FW / Server ej naadd / FW-fel)
+// verbose=true:  visar alla steg på display (Soker / Ingen ny FW / Server ej nadd / FW-fel)
 // verbose=false: tyst på display när inget nytt — visar bara "Ny FW hittad" + "Hamtar..."
 // Serial-logg är alltid aktiv oavsett verbose, så vi alltid kan följa flödet.
 void doOTACheck(bool verbose) {
@@ -207,9 +207,9 @@ void doOTACheck(bool verbose) {
   String latest = TROTA::fetchLatestVersion();
 
   if (latest.length() == 0) {
-    Serial.println("OTA: server ej naadd / version.txt tom");
+    Serial.println("OTA: server ej nadd / version.txt tom");
     if (verbose) {
-      trDisplay.statusScreen("Server", "ej naadd");
+      trDisplay.statusScreen("Server", "ej nadd");
       delay(2500);
     }
     TRESP::setTxPowerLow();

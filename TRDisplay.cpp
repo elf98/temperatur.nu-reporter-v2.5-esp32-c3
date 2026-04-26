@@ -258,7 +258,7 @@ void TRDisplay::showLongPressIndicator(unsigned long heldMs) {
 
   u8g2.clearBuffer();
 
-  // Översta raden: "Släpp ="
+  // Översta raden: "Slapp =" (ASCII-substitution: ä → a för OLED-displayen)
   u8g2.setFont(u8g2_font_6x10_tf);
   const char* prefix = "Slapp =";
   int pw = u8g2.getStrWidth(prefix);

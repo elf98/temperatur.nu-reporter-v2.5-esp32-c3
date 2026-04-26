@@ -180,10 +180,9 @@ namespace TRESP {
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
 
     Serial.println("Manuellt initierad config-portal");
-    if (!wm.startConfigPortal(APName)) {
-      Serial.println("Portal: kunde inte starta");
-      return false;
-    }
+    // OBS: i non-blocking mode returnerar startConfigPortal() alltid false,
+    // även när portalen startade ok. Ignorera returvärdet.
+    wm.startConfigPortal(APName);
 
     bool saved = false;
     unsigned long startMs = millis();
