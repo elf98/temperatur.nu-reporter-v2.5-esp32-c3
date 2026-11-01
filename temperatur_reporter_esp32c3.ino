@@ -170,14 +170,15 @@ void handleButtonPress() {
   }
 
   // Långtryck på WiFi-skärm
-  // Stages: OTA -> Portal -> AVBRYT (säker exit) -> RESET
+  // Stages: OTA -> Portal -> AVBRYT (säker exit) -> RESET -> AVBRYT
+  // Sista AVBRYT: den som håller kvar för länge ska inte hamna i RESET ändå.
   if (duration < 5000) {
     runManualOTACheck();
     mainScreen();
   } else if (duration < 10000) {
     runManualPortal();
     mainScreen();
-  } else if (duration < 15000) {
+  } else if (duration < 15000 || duration >= 20000) {
     // AVBRYT — säker exit, ingen action
     trDisplay.statusScreen("Avbrutet", "");
     delay(1000);
@@ -255,7 +256,7 @@ void runManualPortal() {
     delay(1000);
     ESP.restart();
   } else {
-    trDisplay.statusScreen("Portal stangd", "");
+    trDisplay.statusScreen("Portal av", "");
     delay(1500);
   }
   // Knapptrycket som avslutade portalen kan ha satt ISR-flaggan — ignorera det

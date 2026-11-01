@@ -80,6 +80,19 @@ if ((Get-Item $BinFile).Length -gt $AppSlotSize) {
 }
 Write-Info "Partition:  No FS (ota_0 = 0x$('{0:X}' -f $ota0Size)) OK"
 
+# 2c. USB CDC On Boot maste vara Enabled, annars tar UART0 GPIO20 och 1-Wire dor.
+# IDE:n aterstaller kortinstallningarna vid karnbyte (hande 1/11 2026 med 2.6.0).
+$OptsFile = Join-Path (Split-Path $BinFile) "build.options.json"
+if (-not (Test-Path $OptsFile)) {
+    Write-Err "Hittar inte $OptsFile - kan inte verifiera USB CDC On Boot."
+    exit 1
+}
+if ((Get-Content $OptsFile -Raw) -notmatch 'CDCOnBoot=cdc') {
+    Write-Err "USB CDC On Boot ar inte Enabled. Satt Tools -> USB CDC On Boot -> Enabled och exportera igen."
+    exit 1
+}
+Write-Info "USB CDC:    Enabled OK"
+
 # 3. Confirm
 Write-Host ""
 Write-Host "Server:     $Server" -ForegroundColor Yellow

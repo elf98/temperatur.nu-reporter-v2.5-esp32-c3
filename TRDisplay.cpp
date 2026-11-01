@@ -250,7 +250,7 @@ void TRDisplay::showLongPressIndicator(unsigned long heldMs) {
     releaseAction = "OTA";
   } else if (heldMs < 10000) {
     releaseAction = "Portal";
-  } else if (heldMs < 15000) {
+  } else if (heldMs < 15000 || heldMs >= 20000) {
     releaseAction = "AVBRYT";
   } else {
     releaseAction = "RESET!";
@@ -276,6 +276,9 @@ void TRDisplay::showLongPressIndicator(unsigned long heldMs) {
 void TRDisplay::statusScreen(const char* line1, const char* line2) {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_7x14B_tf);
+  // 7 px/tecken ger bara 10 tecken på 72 px — smalare font för längre rubriker
+  if (u8g2.getStrWidth(line1) > u8g2.getDisplayWidth())
+    u8g2.setFont(u8g2_font_6x13B_tf);
   u8g2.drawStr(0, 16, line1);
   if (line2 && line2[0] != '\0') {
     u8g2.setFont(u8g2_font_6x10_tf);

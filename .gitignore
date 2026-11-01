@@ -17,3 +17,6 @@ build/esp32.esp32.esp32c3/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Flash-logg (lopande band)
+flash_log.csv
