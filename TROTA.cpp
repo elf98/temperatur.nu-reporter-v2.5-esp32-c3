@@ -7,8 +7,11 @@
 
 namespace TROTA {
 
-const char* VERSION_URL       = "http://report.temperatur.nu/firmware/esp32c3/version.txt";
-const char* FIRMWARE_URL_BASE = "http://report.temperatur.nu/firmware/esp32c3/";
+// Egen kanal per partitionsschema: enheter med gamla Default 4 MB-tabellen
+// (1,25 MB app) läser esp32c3/ som är fryst på 2.5.0. OTA kan inte byta
+// partitionstabell, så de måste USB-flashas för att komma hit.
+const char* VERSION_URL       = "http://report.temperatur.nu/firmware/esp32c3-nofs/version.txt";
+const char* FIRMWARE_URL_BASE = "http://report.temperatur.nu/firmware/esp32c3-nofs/";
 
 String fetchLatestVersion() {
   if (WiFi.status() != WL_CONNECTED) {

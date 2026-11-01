@@ -19,7 +19,7 @@
 #include <esp_wifi.h>
 
 // --- Firmware version ---
-#define FW_VERSION "2.5.0"
+#define FW_VERSION "2.6.0"
 
 // --- Dev/prod-toggle för OTA-intervall ---
 //   1 = check varje minut (utveckling)

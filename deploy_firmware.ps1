@@ -16,7 +16,11 @@
 $ErrorActionPreference = "Stop"
 
 $Server     = "erik@159.89.22.162"
-$RemoteBase = "/var/www/report.temperatur.nu/firmware/esp32c3"
+# Kanal för Partition Scheme "No FS 4MB" (sedan 2.6.0). Gamla esp32c3/ är fryst
+# på 2.5.0 för enheter med Default 4 MB-tabellen - deploya aldrig dit.
+$RemoteBase = "/var/www/report.temperatur.nu/firmware/esp32c3-nofs"
+$PublicBase = "http://report.temperatur.nu/firmware/esp32c3-nofs"
+$AppSlotSize = 0x1F0000   # ota_0/ota_1 i no_fs.csv
 $LocalDir   = $PSScriptRoot
 $InoFile    = Join-Path $LocalDir "temperatur_reporter_esp32c3.ino"
 
@@ -51,6 +55,31 @@ if (-not $BinFile) {
 Write-Info "Bin-fil:    $BinFile"
 Write-Info "Storlek:    $([math]::Round((Get-Item $BinFile).Length / 1024, 1)) kB"
 
+# 2b. Kontrollera att bygget gjordes med No FS-tabellen (ota_0 = $AppSlotSize).
+# En bin byggd med fel schema kan inte bootas på enheterna efter OTA.
+$PartFile = $BinFile -replace '\.bin$', '.partitions.bin'
+if (-not (Test-Path $PartFile)) {
+    Write-Err "Hittar inte $PartFile - kan inte verifiera Partition Scheme."
+    exit 1
+}
+$pb = [System.IO.File]::ReadAllBytes($PartFile)
+$ota0Size = $null
+for ($i = 0; $i + 32 -le $pb.Length; $i += 32) {
+    if ($pb[$i] -ne 0xAA -or $pb[$i + 1] -ne 0x50) { break }
+    if ($pb[$i + 2] -eq 0x00 -and $pb[$i + 3] -eq 0x10) {   # app, ota_0
+        $ota0Size = [BitConverter]::ToUInt32($pb, $i + 8)
+    }
+}
+if ($ota0Size -ne $AppSlotSize) {
+    Write-Err ("Fel Partition Scheme: ota_0 = 0x{0:X}, förväntade 0x{1:X}. Välj 'No FS 4MB (2MB APP x2)' och exportera igen." -f $ota0Size, $AppSlotSize)
+    exit 1
+}
+if ((Get-Item $BinFile).Length -gt $AppSlotSize) {
+    Write-Err "Bin-filen är större än app-partitionen ($AppSlotSize byte)."
+    exit 1
+}
+Write-Info "Partition:  No FS (ota_0 = 0x$('{0:X}' -f $ota0Size)) OK"
+
 # 3. Confirm
 Write-Host ""
 Write-Host "Server:     $Server" -ForegroundColor Yellow
@@ -67,6 +96,11 @@ if ($confirm -ne "y") {
 # 4. Upload bin
 $RemoteBin = "$RemoteBase/firmware-$Version.bin"
 Write-Info "`nLaddar upp bin..."
+ssh $Server "mkdir -p $RemoteBase && chmod 755 $RemoteBase"
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "Kunde inte skapa $RemoteBase"
+    exit 1
+}
 scp $BinFile "${Server}:${RemoteBin}"
 if ($LASTEXITCODE -ne 0) {
     Write-Err "Upload misslyckades"
@@ -83,7 +117,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 6. Verifiera
 Write-Info "`nVerifierar..."
-$serverVersion = (Invoke-WebRequest -UseBasicParsing "http://report.temperatur.nu/firmware/esp32c3/version.txt").Content.Trim()
+$serverVersion = (Invoke-WebRequest -UseBasicParsing "$PublicBase/version.txt").Content.Trim()
 Write-Info "Servern rapporterar version: $serverVersion"
 
 if ($serverVersion -eq $Version) {

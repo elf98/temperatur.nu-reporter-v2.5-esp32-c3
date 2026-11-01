@@ -39,7 +39,9 @@ Installeras via Arduino IDE Library Manager:
 | **USB CDC On Boot**      | **Enabled** *(viktigt)* |
 | Upload Speed             | 921600                 |
 | Flash Mode               | QIO                    |
-| Partition Scheme         | Default 4 MB           |
+| Partition Scheme         | **No FS 4MB (2MB APP x2)** |
+
+> **OBS:** Partition Scheme *måste* vara `No FS 4MB` (sedan 2.6.0). OTA-kanalen är `firmware/esp32c3-nofs/`. Enheter med gamla `Default 4 MB` (1,25 MB app) ligger kvar på den frysta kanalen `firmware/esp32c3/` (2.5.0) och måste USB-flashas en gång för att byta tabell; NVS ligger på samma adress så WiFi och inställningar följer med (ha "Erase All Flash" avstängt).
 
 > **OBS:** `USB CDC On Boot` *måste* vara `Enabled`. Annars använder `Serial.begin()` UART0 och låser GPIO20 → 1-Wire-bussen slutar fungera.
 

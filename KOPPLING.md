@@ -29,7 +29,7 @@ Inbyggd LED:           GPIO8
 - **USB CDC On Boot:** Enabled
 - **Upload Speed:** 921600
 - **Flash Mode:** QIO
-- **Partition Scheme:** Default 4MB
+- **Partition Scheme:** No FS 4MB (2MB APP x2) — se README
 
 ## Bibliotek att installera (via Library Manager)
 
