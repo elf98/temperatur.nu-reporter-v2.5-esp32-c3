@@ -44,6 +44,25 @@ void TRDisplay::APScreen(const String& ssid) {
   u8g2.sendBuffer();
 }
 
+// Sensortest i AP-läget (knapptryck när portalen är aktiv vid uppstart).
+// Till skillnad från screenSensors visas S2 alltid, så en saknad andra sensor syns.
+void TRDisplay::sensorTestScreen(const float* temperatures, int sensorCount) {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_8x13B_tf);
+
+  for (int i = 0; i < 2; i++) {
+    char line[16];
+    float t = temperatures[i];
+    if (i < sensorCount && t != -127.0f && t != 85.0f)
+      snprintf(line, sizeof(line), "S%d: %.1f", i + 1, t);
+    else
+      snprintf(line, sizeof(line), "S%d: ---", i + 1);
+    u8g2.drawStr(0, i == 0 ? 16 : 33, line);
+  }
+
+  u8g2.sendBuffer();
+}
+
 void TRDisplay::printDot() {
   static int dotX = 0;
   u8g2.setFont(u8g2_font_7x14B_tf);

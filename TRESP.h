@@ -9,7 +9,10 @@
 
 namespace TRESP {
   void printESPInfo();
-  void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)());
+  // idleCallback (valfri) anropas löpande medan config-portalen är aktiv vid uppstart,
+  // så att knapp/skärm kan hanteras utan att portalen stannar.
+  void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)(),
+                 void (*idleCallback)() = nullptr);
   // Sätt FW-version som inkluderas i upload-URL:en. Anropas en gång i setup().
   void setFwVersion(const char* fwVersion);
   // temperature = lägsta (det temperatur.nu sparar).

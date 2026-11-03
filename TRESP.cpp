@@ -40,7 +40,8 @@ namespace TRESP {
     Serial.printf("ESP32-C3 Rev: %d\n", ESP.getChipRevision());
   }
 
-  void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)()) {
+  void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)(),
+                 void (*idleCallback)()) {
     WiFiManager wifiManager;
 
     // Set hostname
@@ -72,8 +73,21 @@ namespace TRESP {
     // Sänk AP-effekt — telefonen är nära vid setup
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
 
+    // Icke-blockerande: autoConnect() returnerar direkt när portalen startat,
+    // och vi kör portalen själva så att idleCallback (knapp/sensorskärm) hinner köras.
+    wifiManager.setConfigPortalBlocking(false);
+
     // Attempt auto-connect, or start config portal
-    wifiManager.autoConnect(APName);
+    if (!wifiManager.autoConnect(APName)) {
+      Serial.println("Config-portal aktiv vid uppstart");
+      // Portalen avslutas av WiFiManager vid lyckad save+anslutning, misslyckad
+      // anslutning (breakAfterConfig) eller timeout. Omstart sker nedan vid behov.
+      while (wifiManager.getConfigPortalActive()) {
+        if (wifiManager.process()) break;  // sparat och anslutet
+        if (idleCallback) idleCallback();
+        delay(10);
+      }
+    }
 
     // If still not connected, reboot
     checkWiFiStatus();

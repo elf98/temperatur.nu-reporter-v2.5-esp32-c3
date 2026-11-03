@@ -19,7 +19,7 @@
 #include <esp_wifi.h>
 
 // --- Firmware version ---
-#define FW_VERSION "2.6.0"
+#define FW_VERSION "2.6.1"
 
 // --- Dev/prod-toggle för OTA-intervall ---
 //   1 = check varje minut (utveckling)
@@ -96,11 +96,7 @@ void setup() {
 
   TRESP::printESPInfo();
 
-  trDisplay.connectingScreen("WiFi...");
-  TRESP::setupWiFi(AP_NAME, APCallback, saveConfigCallback);
-
-  TRESP::setupNTP();
-
+  // Sensorer före WiFi så att sensortestet fungerar i AP-läget.
   // Återställ 1-Wire-pinnen från ev. UART-state innan OneWire tar över.
   pinMode(ONE_WIRE_BUS, OUTPUT);
   digitalWrite(ONE_WIRE_BUS, HIGH);
@@ -108,6 +104,15 @@ void setup() {
 
   sensors.begin();
   sensors.setResolution(TEMPERATURE_PRECISION);
+
+  trDisplay.connectingScreen("WiFi...");
+  TRESP::setupWiFi(AP_NAME, APCallback, saveConfigCallback, apIdle);
+
+  // Sensortestet läser asynkront — återställ till blockerande läsning för normal drift
+  sensors.setWaitForConversion(true);
+  pressDetected = false;
+
+  TRESP::setupNTP();
 
   mainScreen();
 
@@ -293,9 +298,68 @@ void runOTACheck() {
 }
 
 // --- WiFiManager AP callback ---
+String apSsid;
+
 void APCallback(WiFiManager *myWiFiManager) {
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
-  trDisplay.APScreen(myWiFiManager->getConfigPortalSSID());
+  apSsid = myWiFiManager->getConfigPortalSSID();
+  trDisplay.APScreen(apSsid);
+}
+
+// --- Sensortest i AP-läget ---
+// Anropas löpande av TRESP::setupWiFi medan portalen är aktiv vid uppstart.
+// Knapptryck växlar AP-skärm <-> S1/S2. Portalen påverkas inte. Sensorerna läses
+// asynkront så att portalens webbserver inte står still under konverteringen.
+const unsigned long AP_SENSOR_READ_INTERVAL_MS = 2000;
+const unsigned long AP_SENSOR_CONVERSION_MS    = 800;  // 12 bit = 750 ms
+
+bool apSensorView = false;
+bool apConversionPending = false;
+unsigned long apConversionStart = 0;
+unsigned long apLastRead = 0;
+
+void apIdle() {
+  if (pressDetected) {
+    while (digitalRead(BUTTON_PIN) == LOW) delay(20);  // vänta på release
+    pressDetected = false;
+    lastInteractionMs = millis();
+    apSensorView = !apSensorView;
+    Serial.printf("AP-läge: %s\n", apSensorView ? "sensortest" : "AP-skärm");
+    if (apSensorView) {
+      trDisplay.statusScreen("Sensortest", "Laser...");
+      apLastRead = 0;  // läs direkt
+      apConversionPending = false;
+    } else {
+      trDisplay.APScreen(apSsid);
+    }
+  }
+
+  if (!apSensorView) return;
+
+  if (millis() - lastInteractionMs > SCREEN_AUTO_RETURN_MS) {
+    apSensorView = false;
+    trDisplay.APScreen(apSsid);
+    return;
+  }
+
+  if (!apConversionPending) {
+    if (apLastRead != 0 && millis() - apLastRead < AP_SENSOR_READ_INTERVAL_MS) return;
+    sensors.begin();  // söker om bussen — fångar sensorer som kopplas in under testet
+    sensors.setWaitForConversion(false);
+    sensors.requestTemperatures();
+    apConversionStart = millis();
+    apConversionPending = true;
+    return;
+  }
+
+  if (millis() - apConversionStart < AP_SENSOR_CONVERSION_MS) return;
+
+  apConversionPending = false;
+  apLastRead = millis();
+  int count = sensors.getDeviceCount();
+  float temps[2] = { sensors.getTempCByIndex(0), sensors.getTempCByIndex(1) };
+  Serial.printf("Sensortest: n=%d S1=%.2f S2=%.2f\n", count, temps[0], temps[1]);
+  trDisplay.sensorTestScreen(temps, count);
 }
 
 void saveConfigCallback() {

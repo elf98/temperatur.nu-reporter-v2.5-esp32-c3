@@ -23,6 +23,8 @@ class TRDisplay {
     void bootScreen();
     void connectingScreen(const String& text);
     void APScreen(const String& ssid);
+    // Sensortest i AP-läget: visar alltid S1 och S2 ("---" om saknas/felvärde)
+    void sensorTestScreen(const float* temperatures, int sensorCount);
     void mainScreen(int signalStrength, const float* temperatures,
                     int sensorCount, uint32_t pin,
                     const String& ssid, const String& ip, int rssiPercent,
