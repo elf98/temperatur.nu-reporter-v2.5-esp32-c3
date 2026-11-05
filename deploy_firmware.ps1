@@ -15,7 +15,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$Server     = "erik@159.89.22.162"
+$Server     = "erik@185.189.50.240"
 # Kanal för Partition Scheme "No FS 4MB" (sedan 2.6.0). Gamla esp32c3/ är fryst
 # på 2.5.0 för enheter med Default 4 MB-tabellen - deploya aldrig dit.
 $RemoteBase = "/var/www/report.temperatur.nu/firmware/esp32c3-nofs"
