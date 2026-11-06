@@ -162,9 +162,17 @@ if (-not $Keep) {
     if ($LASTEXITCODE -ne 0) { $result += "+NVS_KVAR" }
 }
 
-if (-not (Test-Path $LogFile)) { "tid;fw;pin;mac;givare;temp;resultat" | Set-Content $LogFile -Encoding ASCII }
-"{0:yyyy-MM-dd HH:mm};{1};{2};{3};{4};{5};{6}" -f (Get-Date), $fw, $pin, $mac, $nsen, $temp, $result | Add-Content $LogFile -Encoding ASCII
+# Steg: tidigare godkand i loggen = andra anslutningen = slutkontroll (enheten ligger i kartongen)
+$stage = "FORSTA TEST"
+if ((Test-Path $LogFile) -and $mac -ne "?") {
+    if (Get-Content $LogFile | Where-Object { $_ -match [regex]::Escape(";$mac;") -and $_ -match ';OK(;|$)' }) {
+        $stage = "SLUTKONTROLL"
+    }
+}
+
+if (-not (Test-Path $LogFile)) { "tid;fw;pin;mac;givare;temp;resultat;steg" | Set-Content $LogFile -Encoding ASCII }
+"{0:yyyy-MM-dd HH:mm};{1};{2};{3};{4};{5};{6};{7}" -f (Get-Date), $fw, $pin, $mac, $nsen, $temp, $result, $stage | Add-Content $LogFile -Encoding ASCII
 
 $color = if ($result -eq "OK") { "Green" } else { "Red" }
-Write-Host ("RESULTAT: {0}  PIN {1}  MAC {2}  givare {3}  {4}" -f $result, $pin, $mac, $nsen, $temp) -ForegroundColor $color
+Write-Host ("RESULTAT: {0}  {1}  PIN {2}  MAC {3}  givare {4}  {5}" -f $result, $stage, $pin, $mac, $nsen, $temp) -ForegroundColor $color
 if ($result -ne "OK") { Write-Host "--- serial ---"; Write-Host $buf }
