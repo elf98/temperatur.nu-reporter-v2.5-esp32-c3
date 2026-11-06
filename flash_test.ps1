@@ -46,6 +46,7 @@ $fw = (Select-String -Path (Join-Path $PSScriptRoot "temperatur_reporter_esp32c3
 # --- 0. Chip-info: MAC och PIN direkt fran chippet (PIN = sista 3 MAC-bytes, som getChipId()) ---
 Step "Laser chip-info pa $Port..."
 $chipMac = ""; $chipPin = ""
+$ErrorActionPreference = "Continue"   # PS 5.1: stderr fran native + 2>&1 blir annars terminerande fel
 $info = & $Esptool --chip esp32c3 --port $Port --baud 921600 --before default-reset --after no-reset read-mac 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) { throw "Kunde inte kontakta enheten pa $Port" }
 if ($info -match 'MAC:\s+([0-9a-fA-F:]{17})') {
@@ -61,6 +62,7 @@ Step "Jamfor enhetens flash med bygget $fw..."
     --flash-mode keep --flash-freq keep --flash-size keep `
     0x8000  (Join-Path $Build "$Name.partitions.bin") `
     0x10000 (Join-Path $Build "$Name.bin") 2>&1 | Out-Null
+$ErrorActionPreference = "Stop"
 $alreadyFlashed = ($LASTEXITCODE -eq 0)
 
 Step "Raderar NVS..."
