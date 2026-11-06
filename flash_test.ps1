@@ -2,11 +2,13 @@
 #
 #   .\flash_test.ps1 -Port COM7 -Ssid "natet" -Pass "losen" [-Keep]
 #
-# 1. Raderar NVS och flashar release-bygget i build/esp32.esp32.esp32c3/
-#    (bootloader, No FS-partitioner, boot_app0, app).
+# 1. Laser MAC/PIN fran chippet, raderar NVS och flashar release-bygget i
+#    build/esp32.esp32.esp32c3/ (bootloader, No FS-partitioner, boot_app0, app).
+#    Har enheten redan exakt detta bygge (verify-flash) hoppas flashningen over.
 # 2. Vantar pa portalen tnu_report, ansluter PC:ns WiFi-kort och skickar in
 #    WiFi-uppgifterna via /wifisave.
 # 3. Laser serial tills enheten rapporterat (HTTP 200) eller timeout.
+#    Hittad givare som ger -127/85 = GIVARFEL.
 # 4. Raderar NVS igen (om inte -Keep) sa enheten startar portalen hos kunden.
 # Skriver en resultatrad till flash_log.csv bredvid skriptet (gitignorerad).
 
@@ -41,20 +43,46 @@ if ($opts -notmatch 'CDCOnBoot=cdc' -or $opts -notmatch 'PartitionScheme=no_fs')
 }
 $fw = (Select-String -Path (Join-Path $PSScriptRoot "temperatur_reporter_esp32c3.ino") -Pattern '#define\s+FW_VERSION\s+"([^"]+)"').Matches[0].Groups[1].Value
 
-# --- 1. Flasha ---
-Step "Raderar NVS och flashar $fw pa $Port..."
-& $Esptool --chip esp32c3 --port $Port --baud 921600 --before default-reset --after no-reset erase-region 0x9000 0x5000 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "erase-region misslyckades" }
-& $Esptool --chip esp32c3 --port $Port --baud 921600 --before no-reset --after hard-reset write-flash -z `
+# --- 0. Chip-info: MAC och PIN direkt fran chippet (PIN = sista 3 MAC-bytes, som getChipId()) ---
+Step "Laser chip-info pa $Port..."
+$chipMac = ""; $chipPin = ""
+$info = & $Esptool --chip esp32c3 --port $Port --baud 921600 --before default-reset --after no-reset read-mac 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) { throw "Kunde inte kontakta enheten pa $Port" }
+if ($info -match 'MAC:\s+([0-9a-fA-F:]{17})') {
+    $chipMac = $Matches[1].ToUpper()
+    $b = $chipMac.Split(':')
+    $chipPin = [string]([Convert]::ToInt32($b[3] + $b[4] + $b[5], 16))
+    Step "MAC $chipMac  PIN $chipPin"
+}
+
+# --- 1. Flasha (hoppa over om enheten redan har exakt detta bygge) ---
+Step "Jamfor enhetens flash med bygget $fw..."
+& $Esptool --chip esp32c3 --port $Port --baud 921600 --before no-reset --after no-reset verify-flash `
     --flash-mode keep --flash-freq keep --flash-size keep `
-    0x0     (Join-Path $Build "$Name.bootloader.bin") `
     0x8000  (Join-Path $Build "$Name.partitions.bin") `
-    0xe000  $BootApp0 `
-    0x10000 (Join-Path $Build "$Name.bin") | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "write-flash misslyckades" }
+    0x10000 (Join-Path $Build "$Name.bin") 2>&1 | Out-Null
+$alreadyFlashed = ($LASTEXITCODE -eq 0)
+
+Step "Raderar NVS..."
+& $Esptool --chip esp32c3 --port $Port --baud 921600 --before no-reset --after no-reset erase-region 0x9000 0x5000 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "erase-region misslyckades" }
+
+if ($alreadyFlashed) {
+    Step "Redan flashad med $fw - hoppar over flashning, startar om for test..."
+    & $Esptool --chip esp32c3 --port $Port --before no-reset --after hard-reset read-mac | Out-Null
+} else {
+    Step "Flashar $fw (ca 10 s)..."
+    & $Esptool --chip esp32c3 --port $Port --baud 921600 --before no-reset --after hard-reset write-flash -z `
+        --flash-mode keep --flash-freq keep --flash-size keep `
+        0x0     (Join-Path $Build "$Name.bootloader.bin") `
+        0x8000  (Join-Path $Build "$Name.partitions.bin") `
+        0xe000  $BootApp0 `
+        0x10000 (Join-Path $Build "$Name.bin") | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "write-flash misslyckades" }
+}
 
 # --- 2+3. Las serial, skicka WiFi nar portalen ar uppe ---
-Step "Flashad, laser serial..."
+Step "Vantar pa att enheten startar portalen..."
 $sp = $null
 for ($i = 0; $i -lt 20 -and -not $sp; $i++) {
     try { $sp = New-Object System.IO.Ports.SerialPort $Port, 115200; $sp.Open() }
@@ -67,8 +95,12 @@ $sw = [Diagnostics.Stopwatch]::StartNew()
 try {
     while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
         try { $buf += $sp.ReadExisting() } catch {}
-        if (-not $sent -and $buf -match 'AP IP address|Config Portal Running|StartAP') {
-            Step "Portalen uppe, ansluter PC:ns WiFi till $ApSsid..."
+        # Uppstartsutskriften kan missas om porten oppnas for sent efter reset -
+        # forsok da ansluta anda efter 12 s (portalen startar inom ~1 s efter boot).
+        $portalSeen = $buf -match 'AP IP address|Config Portal Running|StartAP'
+        if (-not $sent -and ($portalSeen -or $sw.Elapsed.TotalSeconds -gt 12)) {
+            if ($portalSeen) { Step "Portalen uppe, ansluter PC:ns WiFi till $ApSsid..." }
+            else { Step "Ingen serieutskrift fran enheten - provar ansluta till $ApSsid anda..." }
             $xml = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
@@ -106,10 +138,20 @@ try {
     try { $buf += $sp.ReadExisting() } catch {}
 } finally { $sp.Close() }
 
-$pin  = if ($buf -match 'PIN\): (\d+)') { $Matches[1] } else { "?" }
-$mac  = if ($buf -match 'ESP MAC: ([0-9A-F:]+)') { $Matches[1] } else { "?" }
+$pin  = if ($buf -match 'PIN\): (\d+)') { $Matches[1] } elseif ($chipPin) { $chipPin } else { "?" }
+$mac  = if ($buf -match 'ESP MAC: ([0-9A-F:]+)') { $Matches[1] } elseif ($chipMac) { $chipMac } else { "?" }
 $nsen = if ($buf -match 'Sensors: (\d+)') { $Matches[1] } else { "?" }
 $temp = if ($buf -match '&t=(-?[\d.]+)') { $Matches[1] } else { "" }
+
+# Givare hittad pa bussen men avlasningen misslyckades (-127 = svarar inte, 85 = power-on-varde)
+if ($result -eq "OK") {
+    foreach ($k in 't1', 't2') {
+        if ($buf -match "&$k=(-?[\d.]+)") {
+            $v = [double]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture)
+            if ($v -le -127 -or $v -eq 85) { $result = "GIVARFEL"; Step "Givarfel: $k = $v" }
+        }
+    }
+}
 
 # --- 4. Rensa WiFi ---
 if (-not $Keep) {
