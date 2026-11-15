@@ -24,12 +24,11 @@ Se [KOPPLING.md](KOPPLING.md) för fullständigt kopplingsschema.
 
 ## Bibliotek
 
-Installeras via Arduino IDE Library Manager:
+Installeras via Arduino IDE Library Manager (WiFiManager behöver inte installeras, se nedan):
 
 - **U8g2** (olikraus)
 - **OneWire** (Paul Stoffregen)
 - **DallasTemperature** (Miles Burton)
-- **WiFiManager** (tzapu, version 2.x — ESP32-kompatibel)
 
 ## Arduino IDE-inställningar
 
@@ -64,7 +63,7 @@ Cykla mellan lägena med boot-knappen (GPIO9):
 1. Flasha firmware
 2. Kortet startar ett WiFi-AP `tnu_report` med IP `8.8.8.8` (triggar captive portal)
 3. Anslut med mobil eller dator, välj ditt WiFi
-4. Tryck på knappen tills PIN-skärmen visas — notera siffran
+4. PIN-koden står överst i portalen, tillsammans med antal givare och deras värden. Den visas också på PIN-skärmen (tryck på knappen)
 5. Registrera stationen på [temperatur.nu/nystation](https://www.temperatur.nu/nystation) med PIN-koden
 
 ## Protokoll
@@ -87,5 +86,5 @@ http://report.temperatur.nu/rapportera_v2.php?pin=<chipid>&mac=<mac>&t=<temp>&n=
 | `temperatur_reporter_esp32c3.ino`  | Huvudfil, setup/loop, sensorhantering        |
 | `TRESP.{h,cpp}`                    | WiFi, HTTP-rapportering, MAC/chip-ID         |
 | `TRDisplay.{h,cpp}`                | OLED-rendering, skärmlägen                   |
-| `wm_strings_sv.h`                  | Svenska strängar för WiFiManager-portalen    |
+| `src/WiFiManager/`                 | WiFiManager 2.0.17 (tzapu, MIT) med svenska texter i `wm_strings_sv.h`. Biblioteket väljer språkfil vid kompilering, så det följer med skissen i stället för att installeras |
 | `KOPPLING.md`                      | Kopplingsschema                              |

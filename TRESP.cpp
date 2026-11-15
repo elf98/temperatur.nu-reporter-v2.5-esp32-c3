@@ -40,6 +40,48 @@ namespace TRESP {
     Serial.printf("ESP32-C3 Rev: %d\n", ESP.getChipRevision());
   }
 
+  // PIN-koden och givarna överst på portalens startsida (v2 visade PIN där): kunden behöver PIN-koden
+  // för att anmäla mätpunkten och ser direkt om givarna hittas. WiFiManager sparar bara pekaren till
+  // texten, därför en statisk buffert som skrivs om när värdena ändras.
+  static char pinHtml[288];
+  static int portalSensorCount = -1;          // -1 = inte läst än
+  static float portalSensorT[2] = { -127.0f, -127.0f };
+
+  // "3,2 &deg;C" eller "fel" (-127 = ingen kontakt, 85 = givaren har inte mätt)
+  static String portalTempText(float t) {
+    if (t <= -126.0f || t == 85.0f) return "fel";
+    String s = String(t, 1);
+    s.replace(".", ",");
+    return s + " &deg;C";
+  }
+
+  static void renderPortalInfo() {
+    String g;
+    if (portalSensorCount < 0)       g = "Givare: l&auml;ser...";
+    else if (portalSensorCount == 0) g = "Ingen givare hittad";
+    else if (portalSensorCount == 1) g = "1 givare: " + portalTempText(portalSensorT[0]);
+    else g = String(portalSensorCount) + " givare: " + portalTempText(portalSensorT[0]) + " och " + portalTempText(portalSensorT[1]);
+    snprintf(pinHtml, sizeof(pinHtml),
+             "<p style='text-align:center;font-size:1.2em'>PIN-kod: <b>%lu</b></p>"
+             "<p style='text-align:center'>%s</p>",
+             (unsigned long)getChipId(), g.c_str());
+  }
+
+  // Givarnas antal och värden till portalens startsida. Sidan visar det som gällde när den laddades.
+  void setPortalSensors(int count, float t1, float t2) {
+    portalSensorCount = count;
+    portalSensorT[0] = t1;
+    portalSensorT[1] = t2;
+    renderPortalInfo();
+  }
+
+  static void addPinToPortal(WiFiManager& wm) {
+    renderPortalInfo();
+    wm.setCustomMenuHTML(pinHtml);
+    std::vector<const char*> menu = {"custom", "wifi", "info", "exit", "sep", "update"};
+    wm.setMenu(menu);
+  }
+
   void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)(),
                  void (*idleCallback)()) {
     WiFiManager wifiManager;
@@ -66,6 +108,7 @@ namespace TRESP {
     // Svensk titel i portalen
     wifiManager.setTitle("Temperatur.nu Reporter");
     wifiManager.setDarkMode(true);
+    addPinToPortal(wifiManager);
 
     // If a network is saved, timeout the config portal after 5 min
     wifiManager.setConfigPortalTimeout(5 * 60);
@@ -187,6 +230,7 @@ namespace TRESP {
     wm.setSaveConfigCallback(saveCallback);
     wm.setTitle("Temperatur.nu Reporter");
     wm.setDarkMode(true);
+    addPinToPortal(wm);
     wm.setCaptivePortalEnable(true);
     wm.setAPStaticIPConfig(IPAddress(8,8,8,8), IPAddress(8,8,8,8), IPAddress(255,255,255,0));
     wm.setConfigPortalBlocking(false); // vi kör vår egen loop

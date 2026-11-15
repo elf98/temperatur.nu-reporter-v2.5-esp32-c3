@@ -3,7 +3,10 @@
 #ifndef TRESP_H
 #define TRESP_H
 
-#include <WiFiManager.h>
+// WiFiManager 2.0.17 (tzapu, MIT) ligger i src/WiFiManager med svenska texter (wm_strings_sv.h).
+// Biblioteket väljer språkfil vid kompilering, och Arduino IDE kan inte ge det valet till ett
+// installerat bibliotek, därför följer det med skissen (som i Reporter v2).
+#include "src/WiFiManager/WiFiManager.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 
@@ -13,6 +16,8 @@ namespace TRESP {
   // så att knapp/skärm kan hanteras utan att portalen stannar.
   void setupWiFi(const char* APName, void (*apCallback)(WiFiManager*), void (*saveCallback)(),
                  void (*idleCallback)() = nullptr);
+  // Givarnas antal och värden (-127 = saknas) till portalens startsida, bredvid PIN-koden.
+  void setPortalSensors(int count, float t1, float t2);
   // Sätt FW-version som inkluderas i upload-URL:en. Anropas en gång i setup().
   void setFwVersion(const char* fwVersion);
   // temperature = lägsta (det temperatur.nu sparar).

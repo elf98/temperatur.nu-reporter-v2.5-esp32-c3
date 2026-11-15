@@ -19,7 +19,7 @@
 #include <esp_wifi.h>
 
 // --- Firmware version ---
-#define FW_VERSION "2.6.1"
+#define FW_VERSION "2.6.2"
 
 // --- Dev/prod-toggle för OTA-intervall ---
 //   1 = check varje minut (utveckling)
@@ -80,7 +80,12 @@ void IRAM_ATTR buttonISR() {
 
 void setup() {
   setCpuFrequencyMhz(80);
+  // USB-serieporten ska aldrig bromsa driften. Sitter reportern i en dator där ingen läser porten
+  // väntade varje utskrift annars upp till ~2 s (20 försök à 100 ms) och enheten såg ut att hänga.
+  // Större buffert + 2 ms väntan: en läsare som hänger med får allt, annars kastas utskriften.
+  Serial.setTxBufferSize(2048);
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(2);
   delay(500);
   Serial.printf("\n=== Temperatur.nu Reporter v%s ===\n", FW_VERSION);
 
@@ -312,6 +317,7 @@ void APCallback(WiFiManager *myWiFiManager) {
 // asynkront så att portalens webbserver inte står still under konverteringen.
 const unsigned long AP_SENSOR_READ_INTERVAL_MS = 2000;
 const unsigned long AP_SENSOR_CONVERSION_MS    = 800;  // 12 bit = 750 ms
+const unsigned long AP_SENSOR_IDLE_INTERVAL_MS = 5000; // när bara portalsidan visar värdena
 
 bool apSensorView = false;
 bool apConversionPending = false;
@@ -334,16 +340,16 @@ void apIdle() {
     }
   }
 
-  if (!apSensorView) return;
-
-  if (millis() - lastInteractionMs > SCREEN_AUTO_RETURN_MS) {
+  if (apSensorView && millis() - lastInteractionMs > SCREEN_AUTO_RETURN_MS) {
     apSensorView = false;
     trDisplay.APScreen(apSsid);
-    return;
   }
 
+  // Givarna läses hela tiden medan portalen är öppen (portalens startsida visar dem), tätare
+  // när sensortestet visas på displayen.
   if (!apConversionPending) {
-    if (apLastRead != 0 && millis() - apLastRead < AP_SENSOR_READ_INTERVAL_MS) return;
+    unsigned long interval = apSensorView ? AP_SENSOR_READ_INTERVAL_MS : AP_SENSOR_IDLE_INTERVAL_MS;
+    if (apLastRead != 0 && millis() - apLastRead < interval) return;
     sensors.begin();  // söker om bussen — fångar sensorer som kopplas in under testet
     sensors.setWaitForConversion(false);
     sensors.requestTemperatures();
@@ -358,6 +364,8 @@ void apIdle() {
   apLastRead = millis();
   int count = sensors.getDeviceCount();
   float temps[2] = { sensors.getTempCByIndex(0), sensors.getTempCByIndex(1) };
+  TRESP::setPortalSensors(count, temps[0], temps[1]);
+  if (!apSensorView) return;
   Serial.printf("Sensortest: n=%d S1=%.2f S2=%.2f\n", count, temps[0], temps[1]);
   trDisplay.sensorTestScreen(temps, count);
 }
@@ -378,6 +386,7 @@ void sendDataToWeb() {
   float t2 = (sensorCount >= 2) ? sensors.getTempCByIndex(1) : -127.0f;
   float lowest = (sensorCount >= 2) ? min(t1, t2) : t1;
 
+  TRESP::setPortalSensors(sensorCount, t1, t2);  // senast lästa värden, om portalen öppnas med knappen
   lastUploadSucceeded = TRESP::sendDataToWeb(lowest, sensorCount, t1, t2);
 
   digitalWrite(LED_PIN, LOW);
@@ -388,6 +397,8 @@ void sendDataToWeb() {
     Serial.printf("Upload OK, next in %lu s\n", DATA_SEND_INTERVAL);
   else
     Serial.printf("Upload FAILED, retry in %lu s\n", DATA_SEND_SHORT_INTERVAL);
+  // Chippets egen temperatur (inte givarnas), för att kunna följa egenvärmen i drift
+  Serial.printf("Chip temp: %.1f C\n", temperatureRead());
 }
 
 float getLowestTemperature() {
