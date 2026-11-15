@@ -20,3 +20,6 @@ Thumbs.db
 
 # Flash-logg (lopande band)
 flash_log.csv
+
+# Interna verktyg (deploy, lopande band): innehaller serveradress och sokvagar, ligger bara lokalt
+*.ps1
