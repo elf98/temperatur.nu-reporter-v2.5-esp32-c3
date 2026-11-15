@@ -114,5 +114,7 @@ if (-not $Keep) {
     & $Esptool --chip esp32c3 --port $Port --baud 921600 --before default-reset --after hard-reset erase-region 0x9000 0x5000 2>&1 | Out-Null
 }
 $sec = [int]$sw.Elapsed.TotalSeconds
-Add-Content -Path $LogFile -Value ("{0:yyyy-MM-dd HH:mm:ss};{1};{2};{3};{4};{5};OTA {6}->{7} {8}" -f (Get-Date), $chipPin, $chipMac, $endFw, $n, $t, $startFw, $endFw, $result)
+# Samma kolumner som flash_test.ps1: tid;fw;pin;mac;givare;temp;resultat;steg
+if (-not (Test-Path $LogFile)) { "tid;fw;pin;mac;givare;temp;resultat;steg" | Set-Content $LogFile -Encoding ASCII }
+"{0:yyyy-MM-dd HH:mm};{1};{2};{3};{4};{5};{6};OTA {7}->{8}" -f (Get-Date), $endFw, $chipPin, $chipMac, $n, $t, $result, $startFw, $endFw | Add-Content $LogFile -Encoding ASCII
 Write-Host "RESULTAT $Port PIN $chipPin MAC $chipMac $startFw->$endFw ($ota) givare $n temp $t ${sec}s $result"
