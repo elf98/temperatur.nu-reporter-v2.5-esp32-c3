@@ -10,7 +10,12 @@
 //   U8g2           - OLED display
 //   OneWire        - 1-Wire protocol
 //   DallasTemperature - DS18B20 sensors
-//   WiFiManager    - WiFi config portal (tzapu, ESP32 version)
+//
+// WiFiManager (tzapu 2.0.17, MIT) behöver INTE installeras: det ligger i src/WiFiManager och
+// följer med koden, eftersom portalen ska vara på svenska. Biblioteket väljer språkfil när det
+// kompileras, och ett installerat bibliotek går inte att ge vår svenska fil (wm_strings_sv.h).
+// Vid uppgradering av biblioteket: ersätt filerna i src/WiFiManager, behåll wm_strings_sv.h och
+// raden WM_STRINGS_FILE i WiFiManager.h, och för över nya texter från wm_strings_en.h.
 
 #include "TRESP.h"
 #include "TRDisplay.h"
