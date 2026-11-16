@@ -81,7 +81,7 @@ Motståndet är ytmonterat (1206) och löds mellan hålen V3 och RX på kortets 
 2. Anslut en telefon eller dator till nätet. Inställningssidan öppnas oftast av sig själv, annars på adressen `8.8.8.8`.
 3. Överst på sidan står reporterns **PIN-kod** och hur många sensorer den har hittat, med deras temperaturer.
 4. Tryck på *Skanna efter nätverk*, välj ditt wifi (2,4 GHz), skriv lösenordet och tryck på *Spara*.
-5. Anmäl mätpunkten på [temperatur.nu/nystation](https://www.temperatur.nu/nystation) med PIN-koden.
+5. Anmäl mätpunkten på [temperatur.nu/nymatpunkt](https://www.temperatur.nu/nymatpunkt/) med PIN-koden.
 
 Medan inställningssidan är öppen kan du trycka på knappen för att se sensorernas temperaturer på displayen. Inställningssidan stänger sig själv efter fem minuter om ett wifi redan är sparat.
 
